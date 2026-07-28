@@ -35,7 +35,8 @@ Expected Output:
   - `tools/`: Model Context Protocol tools (`cosmology_data.py`, `hypergraph_rewriter.py`).
 - `specs/`
   - `system_specification.md`: Comprehensive system architecture and data structures.
-  - `runux_integration_architecture.md`: Architecture for PyTorch Sparse Tensor Hadamard masking ($M_{t+1} = (M_t^2 + M_t) \odot T$).
+  - `runux_ai_runtime_integration_v1_1.md`: Reviewed v1.1 technical specification.
+  - `runux_integration_implementation_plan.md`: Actionable implementation roadmap with DoD and validation criteria.
 - `tests/`: Full pytest test suite.
 
 ---
@@ -45,12 +46,13 @@ Expected Output:
 - **Root Memory Link:** [Root MEMORY.md](file:///home/callensxavier_gmail_com/MEMORY.md)
 - **Start Here Guide:** [START_HERE.md](file:///home/callensxavier_gmail_com/START_HERE.md)
 - **System Spec:** [system_specification.md](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/specs/system_specification.md)
-- **Runux Architecture Spec:** [runux_integration_architecture.md](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/specs/runux_integration_architecture.md)
+- **Reviewed Tech Spec v1.1:** [runux_ai_runtime_integration_v1_1.md](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/specs/runux_ai_runtime_integration_v1_1.md)
+- **Implementation Plan:** [runux_integration_implementation_plan.md](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/specs/runux_integration_implementation_plan.md)
 
 ---
 
 ## 4. Current Status & Next Milestones
 
-1. **State Persistence & Recovery:** `MEMORY.md` created at root and repository level.
-2. **Phase 3 Scaled Runtime Prototype:** Implementing PyTorch Sparse Tensor Hadamard masking prototype with `topological_relu` in `hypergraph/runux_tensor_mask.py`.
-3. **Integration with Runux C++ Engine:** Linking sparse matrix output from PyTorch engine to Runux C++ backend.
+1. **Specs & Implementation Roadmap:** Audited Tech Spec v1.1 & Implementation Plan stored in `specs/`.
+2. **Phase 1 Implementation:** Begin Task 1.1 (`hypergraph/runux_engine.py`) and Task 1.2 (`hypergraph/tensor_masking.py`).
+3. **Phase 2 Implementation:** Deploy Redis cluster and canonical graph labeling (`hypergraph/canonical_ledger.py`).
