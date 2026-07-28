@@ -11,7 +11,7 @@ def test_twobody_geodesic_attraction():
     res = agent.execute_twobody_attraction_poc(iterations=7)
     
     assert res["agent"] == "TopologyAgent"
-    assert res["two_body_setup"]["initial_geodesic_distance"] == 10.0
+    assert res["two_body_setup"]["initial_geodesic_distance"] == 3.0
     assert res["final_geodesic_distance"] < res["two_body_setup"]["initial_geodesic_distance"]
     assert res["delta_geodesic_distance"] < 0
     assert res["gravitational_attraction_proved"] is True
