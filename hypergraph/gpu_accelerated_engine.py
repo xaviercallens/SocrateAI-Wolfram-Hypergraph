@@ -6,25 +6,36 @@ Executes parallel hypergraph update operations using PyTorch CUDA sparse tensors
 
 import time
 import torch
-from typing import Dict, Any
+import warnings
+from typing import Dict, Any, Optional
+
 
 class GPUHypergraphEngine:
     """Executes hypergraph matrix rewrites and volume growth on NVIDIA Tesla T4 GPU."""
 
-    def __init__(self, device: str = None):
-        if device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            self.device = device
-        self.device_name = torch.cuda.get_device_name(0) if self.device == "cuda" else "CPU"
+    def __init__(self, device: Optional[str] = None):
+        """Initializes the GPU Hypergraph Engine.
 
-    def run_gpu_deep_time_simulation(self, steps: int = 50, initial_nodes: int = 100) -> Dict[str, Any]:
+        Args:
+            device (str, optional): Target device. Defaults to None.
+        """
+        warnings.warn(
+            "GPUHypergraphEngine is deprecated. Use HypergraphEngine from hypergraph.engine instead.",
+            DeprecationWarning,
+            stacklevel=2)
+        self.device: str = device if device is not None else (
+            "cuda" if torch.cuda.is_available() else "cpu")
+        self.device_name: str = torch.cuda.get_device_name(
+            0) if self.device == "cuda" else "CPU"
+
+    def run_gpu_deep_time_simulation(
+            self, steps: int = 50, initial_nodes: int = 100) -> Dict[str, Any]:
         """
         Runs deep-time hypergraph volume growth and Oligon tangle defect density simulation
         on Tesla T4 GPU CUDA tensor memory.
         """
         start_time = time.time()
-        
+
         # Initialize dense adjacency tensor on GPU
         n = initial_nodes
         adj = torch.zeros((n, n), device=self.device, dtype=torch.float32)
@@ -32,27 +43,28 @@ class GPUHypergraphEngine:
         indices = torch.arange(n, device=self.device)
         adj[indices, (indices + 1) % n] = 1.0
         adj[(indices + 1) % n, indices] = 1.0
-        
+
         # Add localized non-planar Oligon defect core (first 10 nodes)
         adj[:10, :10] = 1.0
-        
+
         history_volume = []
         history_core_density = []
-        
+
         for t in range(steps):
-            # Parallel GPU matrix rewrite step: M_{t+1} = M_t^2 + M_t (K3 topological expansion)
+            # Parallel GPU matrix rewrite step: M_{t+1} = M_t^2 + M_t (K3
+            # topological expansion)
             adj = torch.matmul(adj, adj) * 0.1 + adj
-            adj = torch.clamp(adj, 0.0, 10.0) # Stability threshold
-            
+            adj = torch.clamp(adj, 0.0, 10.0)  # Stability threshold
+
             # Volume measure (L1 norm of GPU adjacency tensor)
             volume = torch.sum(adj).item()
             core_density = torch.sum(adj[:10, :10]).item() / max(1.0, volume)
-            
+
             history_volume.append(volume)
             history_core_density.append(core_density)
 
         elapsed = time.time() - start_time
-        
+
         return {
             "device": self.device,
             "device_name": self.device_name,
@@ -70,6 +82,10 @@ class GPUHypergraphEngine:
             }
         }
 
+
 if __name__ == "__main__":
     engine = GPUHypergraphEngine()
-    print("Tesla T4 GPU Engine Test:", engine.run_gpu_deep_time_simulation(steps=50))
+    print(
+        "Tesla T4 GPU Engine Test:",
+        engine.run_gpu_deep_time_simulation(
+            steps=50))

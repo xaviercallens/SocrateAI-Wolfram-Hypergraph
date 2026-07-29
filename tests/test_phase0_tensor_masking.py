@@ -31,12 +31,12 @@ def test_topological_mask_generation():
 def test_canonical_graph_hash():
     M_0 = create_k4_oligon_seed(vacuum_size=6)
     hash_1 = canonical_graph_hash(M_0)
-    
+
     # Permute node order (nodes 0 and 1 swapped)
     perm = list(range(10))
     perm[0], perm[1] = 1, 0
     M_permuted = M_0[perm][:, perm]
-    
+
     hash_2 = canonical_graph_hash(M_permuted)
     # Isomorphic graphs must yield identical hash
     assert hash_1 == hash_2

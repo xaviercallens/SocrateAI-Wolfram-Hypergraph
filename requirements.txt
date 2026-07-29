@@ -1,0 +1,8 @@
+torch
+numpy
+astropy
+scipy
+redis
+pytest
+flake8
+mypy

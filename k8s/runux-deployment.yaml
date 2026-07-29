@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runux-engine-deployment
+  labels:
+    app: runux-engine
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: runux-engine
+  template:
+    metadata:
+      labels:
+        app: runux-engine
+    spec:
+      containers:
+      - name: runux-engine
+        image: hypergraph-engine:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: REDIS_HOST
+          value: "redis-service"
+        - name: REDIS_PORT
+          value: "6379"
+        resources:
+          limits:
+            nvidia.com/gpu: "1"
+            cpu: "4"
+            memory: "16Gi"
+          requests:
+            nvidia.com/gpu: "1"
+            cpu: "2"
+            memory: "8Gi"

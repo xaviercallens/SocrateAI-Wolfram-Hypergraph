@@ -18,7 +18,7 @@ def test_cost_monitor_initialization(tmp_path):
         max_budget_usd=100.0,
         storage_dir=tmp_path / "test_logs"
     )
-    
+
     cost_info = monitor.calculate_current_cost()
     assert cost_info["region"] == "us-central1"
     assert cost_info["hourly_burn_rate_usd"] > 0.0
@@ -30,14 +30,14 @@ def test_cost_monitor_telemetry_logging(tmp_path):
     storage_dir = tmp_path / "test_logs"
     monitor = GlobalCostMonitor(storage_dir=storage_dir)
     log_file = monitor.log_telemetry(step_info={"step": 1, "status": "ok"})
-    
+
     assert log_file.exists()
     assert log_file.name == "cost_telemetry.json"
 
 
 def test_wolfram_rate_limiter():
     limiter = WolframRateLimiter(max_requests_per_minute=600, burst_capacity=5)
-    
+
     @rate_limited(limiter)
     def test_query(x):
         return x * 2
