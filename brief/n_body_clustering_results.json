@@ -1,0 +1,10 @@
+{
+  "num_halos_simulated": 12,
+  "nodes_per_halo": 5000,
+  "total_spatial_nodes": 60000,
+  "evolution_timesteps": 50,
+  "execution_latency_sec": 0.584,
+  "peak_vram_mb": 2.48,
+  "gravitational_crosstalk": "SYNCED",
+  "status": "SUCCESS"
+}

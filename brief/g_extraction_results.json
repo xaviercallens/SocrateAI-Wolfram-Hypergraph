@@ -1,0 +1,9 @@
+{
+  "nodes": 100000,
+  "edges": 5000,
+  "final_spectral_dimension": 1.0,
+  "emergent_gravitational_constant": 2.2247666666666665e-11,
+  "newtonian_g_baseline": 6.6743e-11,
+  "convergence_error_pct": 66.6667,
+  "execution_time_seconds": 0.16
+}

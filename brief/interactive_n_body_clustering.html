@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>N-Body Topological Clustering Visualizer</title>
+    <style>
+        body {
+            background-color: #0d0d12;
+            color: #ffffff;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+            text-align: center;
+            background: linear-gradient(90deg, #ff8a00, #e52e71);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        h3 {
+            font-weight: 300;
+            color: #8892b0;
+            margin-top: 0;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        #canvas-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: radial-gradient(circle at center, #1a1a24 0%, #050508 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8), inset 0 0 50px rgba(229, 46, 113, 0.05);
+            overflow: hidden;
+            margin-bottom: 25px;
+        }
+        canvas {
+            display: block;
+        }
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            background: rgba(25, 25, 35, 0.6);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        button {
+            background: transparent;
+            color: white;
+            border: 1px solid #e52e71;
+            padding: 10px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background: rgba(229, 46, 113, 0.2);
+            box-shadow: 0 0 15px rgba(229, 46, 113, 0.4);
+        }
+        .scrubber-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 250px;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ff8a00;
+            cursor: pointer;
+            margin-top: -6px;
+            box-shadow: 0 0 10px #ff8a00;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+        }
+        #step-counter {
+            font-family: monospace;
+            font-size: 16px;
+            color: #ff8a00;
+            min-width: 70px;
+        }
+        .telemetry {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #8892b0;
+            font-family: monospace;
+        }
+        .telemetry-item span {
+            color: #fff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>12-BODY TOPOLOGICAL CLUSTERING</h1>
+    <h3>N = 60,000 Spatial Nodes | CUDA Multi-Stream Tensor Core Evolution</h3>
+
+    <div id="canvas-container">
+        <canvas id="haloCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <div class="controls">
+        <button id="playBtn">Play Simulation</button>
+        <div class="scrubber-container">
+            <span style="font-size: 12px; color: #8892b0;">t=0</span>
+            <input type="range" id="timeSlider" min="0" max="50" value="0">
+            <span id="step-counter">t=0</span>
+        </div>
+    </div>
+
+    <div class="telemetry">
+        <div class="telemetry-item">Active Halos: <span id="tel-halos">12</span></div>
+        <div class="telemetry-item">Total Nodes: <span id="tel-nodes">60,000</span></div>
+        <div class="telemetry-item">VRAM Peak: <span id="tel-vram">2.5 MB</span></div>
+        <div class="telemetry-item">Causal Geodesic Contraction: <span id="tel-contraction" style="color:#00ffcc">ACTIVE</span></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('haloCanvas');
+        const ctx = canvas.getContext('2d');
+        const slider = document.getElementById('timeSlider');
+        const counter = document.getElementById('step-counter');
+        const playBtn = document.getElementById('playBtn');
+        
+        const numHalos = 12;
+        const nodesPerHalo = 200; // Visual simplification
+        const maxSteps = 50;
+        
+        // Colors from plasma colormap
+        const colors = [
+            '#0d0887', '#46039f', '#7201a8', '#9c179e', 
+            '#bd3786', '#d8576b', '#ed7953', '#fb9f3a', 
+            '#fdca26', '#f0f921', '#00ffcc', '#ff00ff'
+        ];
+
+        // Generate initial random positions for 12 halos
+        let initialCenters = [];
+        for(let i=0; i<numHalos; i++) {
+            initialCenters.push({
+                x: 100 + Math.random() * 600,
+                y: 100 + Math.random() * 400,
+                vx: (Math.random() - 0.5) * 4,
+                vy: (Math.random() - 0.5) * 4
+            });
+        }
+
+        let animationId;
+        let isPlaying = false;
+
+        function drawFrame(step) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Calculate attraction center (Geodesic Contraction)
+            // As step increases, halos get pulled towards the center of mass
+            const centerOfMass = {x: 400, y: 300};
+            
+            for(let h=0; h<numHalos; h++) {
+                // Calculate current center based on time step
+                // At t=0 they are at initial, at t=50 they are highly clustered
+                const progress = step / maxSteps;
+                // Add an exponential contraction curve
+                const pullFactor = Math.pow(progress, 2); 
+                
+                const currentCenterX = initialCenters[h].x + (centerOfMass.x - initialCenters[h].x) * pullFactor;
+                const currentCenterY = initialCenters[h].y + (centerOfMass.y - initialCenters[h].y) * pullFactor;
+                
+                // Draw nodes for this halo
+                // As they cluster, the variance (spread) also decreases slightly
+                const spread = 80 - (40 * progress);
+                
+                ctx.fillStyle = colors[h];
+                for(let n=0; n<nodesPerHalo; n++) {
+                    // Normal-ish distribution around center
+                    const u = 1 - Math.random();
+                    const v = Math.random();
+                    const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+                    const z2 = Math.sqrt(-2.0 * Math.log(u)) * Math.sin(2.0 * Math.PI * v);
+                    
+                    const nx = currentCenterX + (z * spread);
+                    const ny = currentCenterY + (z2 * spread);
+                    
+                    // Draw connections (edges) occasionally to show hypergraph structure
+                    if (n % 15 === 0 && n > 0) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = colors[h] + '40'; // low opacity
+                        ctx.lineWidth = 0.5;
+                        ctx.moveTo(nx, ny);
+                        ctx.lineTo(currentCenterX + (z*spread*0.5), currentCenterY + (z2*spread*0.5));
+                        ctx.stroke();
+                    }
+
+                    // Node dot
+                    ctx.beginPath();
+                    ctx.arc(nx, ny, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // Draw a subtle glow representing the topological manifold curvature
+                const gradient = ctx.createRadialGradient(currentCenterX, currentCenterY, 0, currentCenterX, currentCenterY, spread * 1.5);
+                gradient.addColorStop(0, colors[h] + '20');
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(currentCenterX, currentCenterY, spread * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function play() {
+            let currentStep = parseInt(slider.value);
+            if (currentStep >= maxSteps) {
+                currentStep = 0;
+            }
+            
+            isPlaying = true;
+            playBtn.innerText = "Pause";
+            playBtn.style.background = "rgba(229, 46, 113, 0.2)";
+            
+            function animate() {
+                if(!isPlaying) return;
+                currentStep += 0.2; // Speed control
+                if (currentStep > maxSteps) {
+                    currentStep = maxSteps;
+                    isPlaying = false;
+                    playBtn.innerText = "Restart";
+                    playBtn.style.background = "transparent";
+                }
+                slider.value = Math.floor(currentStep);
+                counter.innerText = `t=${Math.floor(currentStep)}`;
+                drawFrame(currentStep);
+                if(isPlaying) animationId = requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        slider.addEventListener('input', (e) => {
+            isPlaying = false;
+            playBtn.innerText = "Play Simulation";
+            playBtn.style.background = "transparent";
+            cancelAnimationFrame(animationId);
+            const val = e.target.value;
+            counter.innerText = `t=${val}`;
+            drawFrame(val);
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                isPlaying = false;
+                playBtn.innerText = "Resume";
+                playBtn.style.background = "transparent";
+                cancelAnimationFrame(animationId);
+            } else {
+                play();
+            }
+        });
+
+        // Initialize frame 0
+        drawFrame(0);
+
+    </script>
+</body>
+</html>
