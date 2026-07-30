@@ -25,20 +25,21 @@ class CanonicalLedger:
     def compute_canonical_hash(self, adj_matrix: torch.Tensor) -> str:
         """Computes a node-permutation invariant hash of the adjacency matrix.
 
+        Uses the Weisfeiler-Leman graph hash algorithm via NetworkX, which provides
+        a proper isomorphism-invariant fingerprint (unlike simple degree sorting).
+
         Args:
             adj_matrix (torch.Tensor): Sparse or dense adjacency matrix tensor.
 
         Returns:
-            str: SHA-256 canonical hash string.
+            str: Weisfeiler-Leman hash string.
         """
-        dense = adj_matrix.to_dense() if adj_matrix.is_sparse else adj_matrix
-        # Sort rows and columns by node degree to generate canonical order
-        degrees = torch.sum(dense > 0, dim=1)
-        sorted_indices = torch.argsort(degrees, descending=True)
-        canonical_matrix = dense[sorted_indices][:, sorted_indices]
+        import networkx as nx
 
-        matrix_bytes = canonical_matrix.cpu().numpy().tobytes()
-        return hashlib.sha256(matrix_bytes).hexdigest()
+        dense = adj_matrix.to_dense() if adj_matrix.is_sparse else adj_matrix
+        adj_np = (dense.cpu().detach().numpy() > 0.1).astype(int)
+        G = nx.from_numpy_array(adj_np)
+        return nx.weisfeiler_lehman_graph_hash(G)
 
     def register_and_check_prune(self, state_hash: str) -> bool:
         """Checks if a state has been seen and registers it.

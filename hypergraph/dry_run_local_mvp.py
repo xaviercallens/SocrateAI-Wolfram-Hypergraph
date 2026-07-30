@@ -101,11 +101,8 @@ def run_local_dry_run(
             mock_wolfram_rule_query(f"RULE_STEP_{step}_VERIFY")
 
         # Execute PyTorch Hadamard rewrite step: M_{t+1} = (M_t^2 + M_t) (o) T
-        T = generate_topological_mask(M_t)
-        M_sq = torch.matmul(M_t, M_t)
-        M_next_unmasked = M_sq + M_t
-        M_next = M_next_unmasked * T
-        M_next = torch.clamp(M_next, 0.0, 100.0)
+        from hypergraph.masking import hypergraph_step
+        M_next = hypergraph_step(M_t, generate_topological_mask(M_t))
 
         # Local canonical graph hashing
         curr_hash = canonical_graph_hash(M_next)

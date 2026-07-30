@@ -1,10 +1,10 @@
 """
-Runux-SUNDIALS-Scikit Integration Adapter
-=========================================
+Hypergraph Step Orchestrator & Invariant Adapter
+================================================
 Integrates high-performance runtime primitives from:
-1. runux-ai-runtime (Symbrain v4 / WARS-DFA sparse runtime)
-2. rusty-SUNDIALS (Lean 4 certified differential equation solver & dual-number AutoDiff)
-3. scikit-runux-tribute (Logic Tensor Network invariant gatekeepers)
+1. PyTorch Sparse Engine (Sparse Hadamard masking)
+2. Forward Euler Continuum Limit Solver
+3. Logic Tensor Network invariant gatekeepers
 """
 
 import torch
@@ -63,18 +63,18 @@ class LogicTensorNetworkGatekeeper:
             "lean4_certification_status": "VERIFIED_CERT_LEAN4_AUTO" if ltn_truth > 0.95 else "DEVIATED"}
 
 
-class RustySundialsDualAutoDiffSolver:
-    """Rusty-SUNDIALS Dual Number AutoDiff & Symplectic Continuum Limit Solver.
+class ForwardEulerContinuumSolver:
+    """Forward Euler Continuum Limit Solver.
 
-    Uses exact dual numbers (a + b*epsilon) for zero-truncation-error differential equations
+    Uses simple forward Euler numerical integration for the differential equations
     governing hypergraph volume expansion dM/dt = M^2 + M.
     """
 
     @staticmethod
-    def step_dual_forward(
+    def step_forward_euler(
             adj_tensor: torch.Tensor,
             dt: float = 0.01) -> torch.Tensor:
-        """Executes a symplectic step using dual-number AutoDiff principles.
+        """Executes a forward Euler step.
 
         Args:
             adj_tensor (torch.Tensor): Input adjacency tensor.
@@ -95,13 +95,13 @@ class RustySundialsDualAutoDiffSolver:
 
 
 class RunuxHypergraphAccelerator:
-    """Unified Orchestrator leveraging runux-ai-runtime, rusty-SUNDIALS, and scikit-runux-tribute."""
+    """Unified Orchestrator leveraging runux-ai-runtime and scikit-runux-tribute."""
 
     def __init__(self, redis_host: Optional[str] = None):
         self.sparse_engine = RunuxSparseEngine()
         self.ledger = CanonicalLedger(redis_host=redis_host)
         self.gatekeeper = LogicTensorNetworkGatekeeper()
-        self.solver = RustySundialsDualAutoDiffSolver()
+        self.solver = ForwardEulerContinuumSolver()
 
     def process_accelerated_step(
         self, adj_sparse: torch.Tensor, mask_sparse: torch.Tensor, dt: float = 0.01

@@ -70,7 +70,13 @@ class NANOGravAnisotropyMapper:
         pos_list = []
         for name, p in pulsar_positions.items():
             pos_list.append([p["ra_rad"], p["dec_rad"]])
-        sky_pos = np.array(pos_list) if pos_list else np.random.rand(67, 2)
+        sky_pos = np.array(pos_list)
+        if len(sky_pos) == 0:
+            raise ValueError(
+                "pulsar_positions dict is empty — no sky coordinates available. "
+                "Load real pulsar positions from NANOGrav15yrLoader.load_pulsar_positions() "
+                "which requires the official data at https://github.com/nanograv/15yr_stochastic_background"
+            )
 
         num_pulsars = sky_pos.shape[0]
 

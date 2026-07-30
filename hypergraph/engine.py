@@ -59,9 +59,5 @@ class HypergraphEngine:
         Returns:
             torch.Tensor: Updated sparse adjacency matrix.
         """
-        adj_dense = adj_matrix.to_dense() if adj_matrix.is_sparse else adj_matrix
-        m_squared = torch.matmul(adj_dense, adj_dense)
-        unconstrained = m_squared + adj_dense
-        masked_dense = unconstrained * \
-            mask_tensor.to_dense() if mask_tensor.is_sparse else unconstrained * mask_tensor
-        return masked_dense.to_sparse().coalesce()
+        from hypergraph.masking import hypergraph_step
+        return hypergraph_step(adj_matrix, mask_tensor)

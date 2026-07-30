@@ -132,6 +132,18 @@ class GWStrainExtractor:
         """
         Parses multi-halo merger checkpoint files, extracts time-series quadrupole Q_ij(t),
         and computes the complete h_c(f) strain spectrum.
+
+        Args:
+            checkpoint_files: List of paths to checkpoint files containing
+                either {"adj": Tensor, "pos": Tensor} dicts or raw tensors.
+            dt: Time step between checkpoints in seconds.
+            freqs: Target frequency array. Defaults to 14 NANOGrav bins.
+
+        Returns:
+            Dict with h_c spectrum, continuum slope, and resonance peak data.
+
+        Raises:
+            ValueError: If no valid checkpoint files are found or loaded.
         """
         if freqs is None:
             # 14 frequency bins matching NANOGrav 15yr (1/T_span to 14/T_span, T_span = 16.03 yrs)
@@ -139,24 +151,39 @@ class GWStrainExtractor:
             freqs = np.array([i / T_span for i in range(1, 15)])
 
         time_series = []
+        load_errors = []
         for file_path in checkpoint_files:
             if not file_path.exists():
+                load_errors.append(f"File not found: {file_path}")
                 continue
-            data = torch.load(file_path, map_location="cpu")
-            if isinstance(data, dict) and "adj" in data and "pos" in data:
-                Q = self.compute_quadrupole_tensor(data["adj"], data["pos"]).numpy()
-            else:
-                # Fallback mock quadrupole matrix from checkpoint step index
-                step_idx = int(data.get("step", 0)) if isinstance(data, dict) else 1
-                Q = np.eye(3, dtype=np.float32) * (1.0 + 0.05 * math.sin(step_idx * 0.1))
-            time_series.append(Q)
+            try:
+                data = torch.load(file_path, map_location="cpu", weights_only=False)
+                if isinstance(data, dict) and "adj" in data and "pos" in data:
+                    Q = self.compute_quadrupole_tensor(data["adj"], data["pos"]).numpy()
+                elif isinstance(data, dict) and "step" in data:
+                    load_errors.append(
+                        f"Checkpoint {file_path} has no 'adj'/'pos' keys. "
+                        f"Available keys: {list(data.keys())}"
+                    )
+                    continue
+                else:
+                    load_errors.append(
+                        f"Unrecognized checkpoint format in {file_path}: {type(data)}"
+                    )
+                    continue
+                time_series.append(Q)
+            except Exception as e:
+                load_errors.append(f"Failed to load {file_path}: {e}")
+                continue
 
-        if not time_series:
-            # Generate mock 50-step time series if no checkpoint files were loaded
-            time_series = [
-                np.eye(3, dtype=np.float32) * (1.0 + 0.05 * math.sin(t * 0.1))
-                for t in range(50)
-            ]
+        if len(time_series) < 4:
+            error_detail = "\n".join(load_errors[:10]) if load_errors else "No files provided."
+            raise ValueError(
+                f"Insufficient valid checkpoint data for strain computation. "
+                f"Loaded {len(time_series)}/4 minimum required time steps from "
+                f"{len(checkpoint_files)} input files.\n"
+                f"Errors:\n{error_detail}"
+            )
 
         time_series_Q = np.stack(time_series, axis=0)
         return self.compute_characteristic_strain(time_series_Q, dt, freqs)

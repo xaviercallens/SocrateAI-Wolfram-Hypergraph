@@ -8,6 +8,8 @@ import json
 import torch
 import math
 from typing import Dict, Any
+from mcp.tools.evaluate_symbolic import SymbolicEvaluator
+from mcp.tools.lean_verifier import Lean4Verifier
 
 class PurePythonHypergraphEngine:
     def __init__(self, edges):
@@ -129,6 +131,8 @@ class TopologyAgent:
         self.strict_cag_mode = strict_cag_mode
         self.enable_multiway_graphs = enable_multiway_graphs
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.evaluator = SymbolicEvaluator()
+        self.lean_verifier = Lean4Verifier()
 
     def execute_multiway_oligon_poc(self, iterations: int = 5) -> Dict[str, Any]:
         """
@@ -159,27 +163,29 @@ class TopologyAgent:
 
         r_curvature = v_tangle_hist[-1] / max(1, v_vacuum_hist[-1])
         
-        wolfram_code = """
-(* Wolfram Language Multi-Way Causal Graph for Oligon K4 Tangle *)
-k4Seed = {{1, 2}, {2, 3}, {3, 1}, {1, 4}, {2, 4}, {3, 4}};
-vacuumCycle = Table[{i, Mod[i, 11] + 5}, {i, 5, 15}];
-initHypergraph = Union[k4Seed, vacuumCycle, {{1, 5}, {4, 10}}];
-
-ruleA = {{x_, y_}, {x_, z_}} :> {{x, w}, {y, w}, {z, w}};
-ruleB = {{x_, y_}, {y_, z_}, {z_, x_}} :> {{x, y}, {y, z}, {z, x}, {x, w}, {y, w}, {z, w}};
-
-multiwayEvolution = ResourceFunction["MultiwayResourceSystem"][
-  {ruleA, ruleB}, initHypergraph, %d
-];
-
-vTangle = %d;
-vVacuum = %d;
-curvatureRatioR = N[vTangle / vVacuum];
-
-Print["VTangle at step %d: ", vTangle];
-Print["VVacuum at step %d: ", vVacuum];
-Print["Curvature Ratio R = VTangle / VVacuum: ", curvatureRatioR];
-""" % (iterations, v_tangle_hist[-1], v_vacuum_hist[-1], iterations, iterations)
+        with open("mcp/scripts/multiway_oligon_poc.wl", "r") as f:
+            wolfram_code = f.read().format(
+                iterations=iterations,
+                vTangle=v_tangle_hist[-1],
+                vVacuum=v_vacuum_hist[-1]
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "curvature_ratio_R": round(r_curvature, 4),
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "curvature_ratio_R": round(r_curvature, 4)
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/Oligon_Topology.lean")
 
         return {
             "agent": self.name,
@@ -204,16 +210,8 @@ Print["Curvature Ratio R = VTangle / VVacuum: ", curvatureRatioR];
             },
             "curvature_ratio_R": round(r_curvature, 4),
             "emergent_gravity_result": "EMERGENT_GRAVITY_DEMONSTRATED (R > 1.0)" if r_curvature > 1.0 else "FLAT_VACUUM",
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "curvature_ratio_R": round(r_curvature, 4)
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/Oligon_Topology.lean",
-                "theorem": "curvature_ratio_greater_than_one"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
     def execute_twobody_attraction_poc(self, iterations: int = 7) -> Dict[str, Any]:
@@ -248,30 +246,33 @@ Print["Curvature Ratio R = VTangle / VVacuum: ", curvatureRatioR];
         final_d = geodesic_distance_history[-1]
         delta_d = round(final_d - initial_d, 2)
         
-        wolfram_code = f"""
-(* Wolfram Language Multi-Way Two-Body K4 Oligon Attraction *)
-k4Tangle1 = {{{{1, 2}}, {{2, 3}}, {{3, 1}}, {{1, 4}}, {{2, 4}}, {{3, 4}}}};
-k4Tangle2 = {{{{25, 26}}, {{26, 27}}, {{27, 25}}, {{25, 28}}, {{26, 28}}, {{27, 28}}}};
-vacuumCycle = Table[{{i, Mod[i - 5 + 1, 20] + 5}}, {{i, 5, 24}}];
-couplings = {{{{4, 5}}, {{24, 25}}}};
-
-initHypergraph = Union[k4Tangle1, k4Tangle2, vacuumCycle, couplings];
-
-ruleA = {{{{x_, y_}}, {{x_, z_}}}} :> {{{{x, w}}, {{y, w}}, {{z, w}}}};
-ruleB = {{{{x_, y_}}, {{y_, z_}}, {{z_, x_}}}} :> {{{{x, y}}, {{y, z}}, {{z, x}}, {{x, w}}, {{y, w}}, {{z, w}}}};
-
-multiwayEvolution = ResourceFunction["MultiwayResourceSystem"][
-  {{ruleA, ruleB}}, initHypergraph, {iterations}
-];
-
-initialDistance = {initial_d};
-finalDistance = {final_d};
-geodesicContraction = initialDistance - finalDistance;
-
-Print["Initial Geodesic Distance d_0: ", initialDistance];
-Print["Final Geodesic Distance d_7: ", finalDistance];
-Print["Gravitational Attraction Delta d: ", geodesicContraction];
-"""
+        with open("mcp/scripts/twobody_attraction_poc.wl", "r") as f:
+            wolfram_code = f.read().format(
+                iterations=iterations,
+                initial_d=initial_d,
+                final_d=final_d
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "initial_distance": initial_d,
+                "final_distance": final_d,
+                "contraction": abs(delta_d),
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "initial_distance": initial_d,
+                "final_distance": final_d,
+                "contraction": abs(delta_d)
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/Oligon_Attraction.lean")
 
         return {
             "agent": self.name,
@@ -294,18 +295,8 @@ Print["Gravitational Attraction Delta d: ", geodesicContraction];
             "delta_geodesic_distance": delta_d,
             "gravitational_attraction_proved": delta_d < 0,
             "result_status": "GRAVITATIONAL_ATTRACTION_DEMONSTRATED (Delta d < 0)" if delta_d < 0 else "NO_ATTRACTION",
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "initial_distance": initial_d,
-                "final_distance": final_d,
-                "contraction": abs(delta_d)
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/Oligon_Attraction.lean",
-                "theorem": "two_body_geodesic_attraction"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
     def execute_gravitational_lensing_poc(self, steps: int = 10) -> Dict[str, Any]:
@@ -347,22 +338,31 @@ Print["Gravitational Attraction Delta d: ", geodesicContraction];
         import math
         deflection_angle_deg = round(math.degrees(math.atan2(deflection_delta_y, steps)), 2)
         
-        wolfram_code = f"""
-(* Wolfram Language Gravitational Lensing Simulation *)
-oligonCore = {{{{1, 2}}, {{2, 3}}, {{3, 1}}, {{1, 4}}, {{2, 4}}, {{3, 4}}}};
-photonGeodesic = Table[{{i, i + 1}}, {{i, 100, 100 + {steps}}}];
-impactParameter = {impact_parameter_b};
-
-(* Multi-way evolution with Rule B topological curvature *)
-finalYCoordinate = {final_y};
-deflectionDeltaY = impactParameter - finalYCoordinate;
-deflectionAngle = ArcTan[deflectionDeltaY / {steps}];
-
-Print["Impact Parameter b: ", impactParameter];
-Print["Deflected Photon Y Coordinate: ", finalYCoordinate];
-Print["Deflection Delta Y: ", deflectionDeltaY];
-Print["Deflection Angle: ", N[deflectionAngle * 180 / Pi], " degrees"];
-"""
+        with open("mcp/scripts/gravitational_lensing_poc.wl", "r") as f:
+            wolfram_code = f.read().format(
+                steps=steps,
+                impact_parameter_b=impact_parameter_b,
+                final_y=final_y
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "deflection_delta_y": deflection_delta_y,
+                "deflection_angle_deg": deflection_angle_deg,
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "deflection_delta_y": deflection_delta_y,
+                "deflection_angle_deg": deflection_angle_deg
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/Gravitational_Lensing.lean")
 
         return {
             "agent": self.name,
@@ -383,17 +383,8 @@ Print["Deflection Angle: ", N[deflectionAngle * 180 / Pi], " degrees"];
             "deflection_angle_degrees": deflection_angle_deg,
             "lensing_proved": deflection_delta_y > 0,
             "result_status": "GRAVITATIONAL_LENSING_CONFIRMED (Deflection > 0)" if deflection_delta_y > 0 else "FLAT_SPACE",
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "deflection_delta_y": deflection_delta_y,
-                "deflection_angle_deg": deflection_angle_deg
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/Gravitational_Lensing.lean",
-                "theorem": "photon_path_bends_inward"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
     def execute_mfdm_mass_spectrum_trial(self, iterations: int = 10) -> Dict[str, Any]:
@@ -442,19 +433,32 @@ Print["Deflection Angle: ", N[deflectionAngle * 180 / Pi], " degrees"];
                 "mfdm_mass_state": "SUB_THRESHOLD_DISPERSION" if not is_stable else ("THRESHOLD_STABLE_SOLITON" if seed_name == "K4" else "ULTRA_DENSE_CORE")
             }
             
-        wolfram_code = f"""
-(* Wolfram Language MFDM Mass Spectrum Trial *)
-vacuumRate = {vacuum_expansion_rate_H};
-k3Edges = 3; k4Edges = 6; k5Edges = 10;
-
-k3Integrity = Table[k3Edges + (0.8 - vacuumRate) * t, {{t, 0, {iterations}}}];
-k4Integrity = Table[k4Edges + (1.5 - vacuumRate) * t, {{t, 0, {iterations}}}];
-k5Integrity = Table[k5Edges + (3.2 - vacuumRate) * t, {{t, 0, {iterations}}}];
-
-Print["K3 Final Integrity: ", Last[k3Integrity], " -> Dissolved by Dark Energy"];
-Print["K4 Final Integrity: ", Last[k4Integrity], " -> Stable MFDM Soliton Threshold"];
-Print["K5 Final Integrity: ", Last[k5Integrity], " -> Ultra-Dense Core"];
-"""
+        with open("mcp/scripts/mfdm_mass_spectrum_trial.wl", "r") as f:
+            wolfram_code = f.read().format(
+                vacuum_expansion_rate_H=vacuum_expansion_rate_H,
+                iterations=iterations
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": results["K3"]["final_bound_integrity"],
+                "k4_final": results["K4"]["final_bound_integrity"],
+                "k5_final": results["K5"]["final_bound_integrity"],
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": results["K3"]["final_bound_integrity"],
+                "k4_final": results["K4"]["final_bound_integrity"],
+                "k5_final": results["K5"]["final_bound_integrity"]
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/MFDM_Mass_Spectrum.lean")
 
         return {
             "agent": self.name,
@@ -474,18 +478,8 @@ Print["K5 Final Integrity: ", Last[k5Integrity], " -> Ultra-Dense Core"];
                 "mfdm_soliton_mass_scale": "m_chi ~ 10^-22 eV (Condensate Limit of K4 Oligon)",
                 "sub_threshold_behavior": "K3 defects dissolve into background vacuum dispersion"
             },
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "k3_final": results["K3"]["final_bound_integrity"],
-                "k4_final": results["K4"]["final_bound_integrity"],
-                "k5_final": results["K5"]["final_bound_integrity"]
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/MFDM_Mass_Spectrum.lean",
-                "theorem": "k3_dissolves_under_expansion"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
     def execute_simultaneous_k3_k5_spectrum_trial(self, iterations: int = 10) -> Dict[str, Any]:
@@ -517,22 +511,33 @@ Print["K5 Final Integrity: ", Last[k5Integrity], " -> Ultra-Dense Core"];
         k3_evaporated = k3_integrity_hist[-1] == 0.0
         k5_gravity_well_curvature = round(k5_integrity_hist[-1] / max(1.0, k3_integrity_hist[-1] + 1.0), 2)
         
-        wolfram_code = f"""
-(* Wolfram Language Simultaneous K3 vs K5 Mass Spectrum Trial *)
-k3Seed = {{{{1, 2}}, {{2, 3}}, {{3, 1}}}};
-k5Seed = {{{{20, 21}}, {{21, 22}}, {{22, 23}}, {{23, 24}}, {{24, 20}}, {{20, 22}}, {{21, 23}}, {{22, 24}}, {{23, 20}}, {{24, 21}}}};
-vacuumBridge = Table[{{i, Mod[i - 4 + 1, 16] + 4}}, {{i, 4, 19}}];
-
-initHypergraph = Union[k3Seed, k5Seed, vacuumBridge];
-
-k3FinalIntegrity = {k3_integrity_hist[-1]};
-k5FinalIntegrity = {k5_integrity_hist[-1]};
-k5CurvatureRatio = {k5_gravity_well_curvature};
-
-Print["K3 Final Integrity (Evaporated): ", k3FinalIntegrity];
-Print["K5 Final Integrity (Deep Gravity Well): ", k5FinalIntegrity];
-Print["K5 Curvature Ratio R: ", k5CurvatureRatio];
-"""
+        with open("mcp/scripts/simultaneous_k3_k5.wl", "r") as f:
+            wolfram_code = f.read().format(
+                k3_final=k3_integrity_hist[-1],
+                k5_final=k5_integrity_hist[-1],
+                k5_curvature=k5_gravity_well_curvature
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": k3_integrity_hist[-1],
+                "k5_final": k5_integrity_hist[-1],
+                "k5_curvature_ratio": k5_gravity_well_curvature,
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": k3_integrity_hist[-1],
+                "k5_final": k5_integrity_hist[-1],
+                "k5_curvature_ratio": k5_gravity_well_curvature
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/Simultaneous_Mass_Trial.lean")
 
         return {
             "agent": self.name,
@@ -563,18 +568,8 @@ Print["K5 Curvature Ratio R: ", k5CurvatureRatio];
                 "k5_deep_well_confirmed": True,
                 "mfdm_quantum_mass_boundary": "K4 represents the exact minimum quantum mass limit (m_chi ~ 10^-22 eV)"
             },
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "k3_final": k3_integrity_hist[-1],
-                "k5_final": k5_integrity_hist[-1],
-                "k5_curvature_ratio": k5_gravity_well_curvature
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/Simultaneous_Mass_Trial.lean",
-                "theorem": "k3_evaporates_and_k5_forms_gravity_well"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
     def execute_k3_k4_k5_mass_spectrum_trial_pruned(self, iterations: int = 10, pruning_mode: str = "aggressive") -> Dict[str, Any]:
@@ -591,7 +586,7 @@ Print["K5 Curvature Ratio R: ", k5CurvatureRatio];
         vacuum_grid = [(i, i + 1) for i in range(4, 9)] + [(i, i + 1) for i in range(14, 19)]
         
         device_name = torch.cuda.get_device_name(0) if self.device == "cuda" else "Tesla T4 (CUDA 13.0)"
-        gpu_vram_mb = torch.cuda.mem_get_info()[0] / (1024**2) if self.device == "cuda" else 8245.3
+        gpu_vram_mb = torch.cuda.mem_get_info()[0] / (1024**2) if self.device == "cuda" else 0.0
         
         k3_engine = PurePythonHypergraphEngine(k3_seed)
         k4_engine = PurePythonHypergraphEngine(k4_seed)
@@ -608,27 +603,34 @@ Print["K5 Curvature Ratio R: ", k5CurvatureRatio];
             k4_hist.append(float(len(k4_engine.edges)))
             k5_hist.append(float(len(k5_engine.edges)))
             
-        wolfram_code = f"""
-(* Wolfram Language Simultaneous K3/K4/K5 Mass Spectrum Trial with Isomorphic Pruning *)
-k3Seed = {{{{1, 2}}, {{2, 3}}, {{3, 1}}}};
-k4Seed = {{{{10, 11}}, {{11, 12}}, {{12, 10}}, {{10, 13}}, {{11, 13}}, {{12, 13}}}};
-k5Seed = {{{{20, 21}}, {{21, 22}}, {{22, 23}}, {{23, 24}}, {{24, 20}}, {{20, 22}}, {{21, 23}}, {{22, 24}}, {{23, 20}}, {{24, 21}}}};
-
-initHypergraph = Union[k3Seed, k4Seed, k5Seed];
-
-ruleA = {{{{x_, y_}}, {{x_, z_}}}} :> {{{{x, w}}, {{y, w}}, {{z, w}}}};
-ruleB = {{{{x_, y_}}, {{y_, z_}}, {{z_, x_}}}} :> {{{{x, y}}, {{y, z}}, {{z, x}}, {{x, w}}, {{y, w}}, {{z, w}}}};
-
-(* Canonical Graph Reduction / Isomorphic Pruning Enabled *)
-multiwaySystem = ResourceFunction["MultiwayResourceSystem"][
-  {{ruleA, ruleB}}, initHypergraph, {iterations},
-  "IncludeIsomorphicStates" -> False
-];
-
-Print["K3 Final Integrity (Evaporated): ", {k3_hist[-1]}];
-Print["K4 Final Integrity (Threshold Soliton): ", {k4_hist[-1]}];
-Print["K5 Final Integrity (Deep Gravity Well): ", {k5_hist[-1]}];
-"""
+        with open("mcp/scripts/k3_k4_k5_pruned.wl", "r") as f:
+            wolfram_code = f.read().format(
+                iterations=iterations,
+                k3_final=k3_hist[-1],
+                k4_final=k4_hist[-1],
+                k5_final=k5_hist[-1]
+            )
+            
+        wolfram_result = {"status": "unverified"}
+        if self.evaluator.is_available:
+            wolfram_result = {
+                "status": "success",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": k3_hist[-1],
+                "k4_final": k4_hist[-1],
+                "k5_final": k5_hist[-1],
+                "wolfram_output": self.evaluator.evaluate_expression(wolfram_code)
+            }
+        else:
+            wolfram_result = {
+                "status": "success_offline",
+                "code_executed": wolfram_code.strip(),
+                "k3_final": k3_hist[-1],
+                "k4_final": k4_hist[-1],
+                "k5_final": k5_hist[-1]
+            }
+            
+        lean_result = self.lean_verifier.verify("proofs/Lean4/K3_K4_K5_Pruned_Spectrum.lean")
 
         return {
             "agent": self.name,
@@ -672,18 +674,8 @@ Print["K5 Final Integrity (Deep Gravity Well): ", {k5_hist[-1]}];
                 "mfdm_continuum_field_anchor": "m_chi ~ 10^-22 eV (MFDM Fuzzy Dark Matter Soliton)",
                 "super_critical_halo": "K5 forms hyper-dense core with R = 2.91 relative to K4"
             },
-            "wolfram_mcp_output": {
-                "status": "success",
-                "code_executed": wolfram_code.strip(),
-                "k3_final": k3_hist[-1],
-                "k4_final": k4_hist[-1],
-                "k5_final": k5_hist[-1]
-            },
-            "lean4_verification": {
-                "status": "verified",
-                "file": "proofs/Lean4/K3_K4_K5_Pruned_Spectrum.lean",
-                "theorem": "k3_evaporates_k4_stable_k5_gravity_well"
-            }
+            "wolfram_mcp_output": wolfram_result,
+            "lean4_verification": lean_result
         }
 
 if __name__ == "__main__":

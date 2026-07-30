@@ -127,12 +127,9 @@ class BatchManager:
                 print("⚠️ Budget guardrail exceeded. Ending batch run early.")
                 break
 
-            # Perform Hadamard rewrite: M_{t+1} = (M_t^2 + M_t) * T
+            # Perform hypergraph_step
             T = generate_topological_mask(M_t)
-            M_sq = torch.matmul(M_t, M_t)
-            M_next_unmasked = M_sq + M_t
-            M_next = M_next_unmasked * T
-            M_next = torch.clamp(M_next, 0.0, 100.0)
+            M_next = hypergraph_step(M_t, T)
 
             # Graph metrics & spectrum
             curr_hash = canonical_graph_hash(M_next)

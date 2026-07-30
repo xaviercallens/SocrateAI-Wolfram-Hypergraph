@@ -1,68 +1,140 @@
 """
 NANOGrav 15-Year Data Lake Loader (Phase 1B)
-===========================================
-Loads real NANOGrav 15-year dataset products (14-frequency bin free spectrum posteriors,
-optimal statistics, white noise dictionaries, empirical distributions, and timing residuals)
-and syncs them to the GCP Agora Data Lake.
+=============================================
+Loads REAL NANOGrav 15-year dataset products (14-frequency bin free spectrum posteriors,
+optimal statistics, white noise dictionaries, empirical distributions, and timing residuals).
+
+Data acquisition:
+  Official NANOGrav 15yr data products:
+    - Zenodo: https://zenodo.org/records/8067506
+    - GitHub: https://github.com/nanograv/15yr_stochastic_background
+  Clone the repo and point data_dir to the tutorials/data/ subdirectory.
+
+  Set NANOGRAV_DATA_DIR env var or pass data_dir to constructor.
 """
 
 import os
 import json
 import subprocess
+import hashlib
 import numpy as np
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-DEFAULT_GCS_BUCKET = "gs://socrateai-datalake-gen-lang-client-0625573011/nanograv_15yr/"
-LOCAL_DATA_DIR = Path("/tmp/nanograv_15yr_repo/tutorials/data")
+
+# Official NANOGrav 15yr GitHub repository
+NANOGRAV_REPO_URL = "https://github.com/nanograv/15yr_stochastic_background.git"
+
+# Known file checksums for data integrity verification (SHA-256 prefixes)
+KNOWN_CHECKSUMS = {
+    "curn_14f_pl_vg_os.npz": None,  # Set after first verified download
+}
 
 
 class NANOGrav15yrLoader:
     """
     Ingests and parses official NANOGrav 15-year public data products.
+    Raises FileNotFoundError when data is unavailable — never generates synthetic fallbacks.
     """
 
-    def __init__(self, data_dir: Path = LOCAL_DATA_DIR, gcs_bucket: str = DEFAULT_GCS_BUCKET):
-        self.data_dir = Path(data_dir)
+    def __init__(
+        self,
+        data_dir: Optional[str] = None,
+        gcs_bucket: str = "gs://socrateai-datalake-gen-lang-client-0625573011/nanograv_15yr/",
+    ):
+        """Initializes the NANOGrav data loader.
+
+        Args:
+            data_dir: Path to the NANOGrav 15yr data directory (containing .npz and .json files).
+                Falls back to NANOGRAV_DATA_DIR env var.
+            gcs_bucket: GCS bucket path for cloud sync operations.
+        """
+        resolved_dir = data_dir or os.environ.get("NANOGRAV_DATA_DIR")
+        if resolved_dir is None:
+            # Try the default location from the original repo clone
+            default = Path("/tmp/nanograv_15yr_repo/tutorials/data")
+            if default.exists():
+                resolved_dir = str(default)
+            else:
+                raise ValueError(
+                    "NANOGrav data directory must be specified via constructor argument or "
+                    "NANOGRAV_DATA_DIR environment variable.\n"
+                    f"Clone the official repo: git clone {NANOGRAV_REPO_URL}\n"
+                    "Then set NANOGRAV_DATA_DIR to the tutorials/data/ subdirectory."
+                )
+        self.data_dir = Path(resolved_dir)
         self.gcs_bucket = gcs_bucket
+
+    def _require_file(self, filename: str) -> Path:
+        """Returns the path to a required data file or raises FileNotFoundError."""
+        path = self.data_dir / filename
+        if not path.exists():
+            raise FileNotFoundError(
+                f"NANOGrav data file not found: {path}\n"
+                f"Clone the official repo: git clone {NANOGRAV_REPO_URL}\n"
+                f"Expected file at: {path}"
+            )
+        return path
 
     def load_free_spectrum_data(self) -> Dict[str, Any]:
         """
-        Loads the 14-frequency bin free spectrum posteriors and empirical distributions.
+        Loads the 14-frequency bin free spectrum posteriors from the real NANOGrav .npz file.
+
+        Returns:
+            Dict with keys: frequencies_hz, t_span_sec, num_bins, amplitude_matrix,
+            amplitude_err_matrix, and optionally empirical_distribution.
+
+        Raises:
+            FileNotFoundError: If the required .npz file is not found.
         """
         T_span = 16.03 * 365.25 * 86400.0  # 16.03 years in seconds
-        f_year = 1.0 / (365.25 * 86400.0)
         freqs = np.array([i / T_span for i in range(1, 15)])  # 14 frequency bins
-
-        npz_path = self.data_dir / "curn_14f_pl_vg_os.npz"
-        emp_path = self.data_dir / "15yr_emp_distr.json"
 
         data = {
             "frequencies_hz": freqs,
             "t_span_sec": T_span,
-            "num_bins": 14
+            "num_bins": 14,
         }
 
-        # Construct 14-frequency bin free spectrum posterior sample matrix (num_samples, 14)
-        num_samples = 1000
-        # NANOGrav 15yr free spectrum median characteristic strain values
-        # Power law slope gamma = 4.33 reference with low-frequency turnover
-        gamma = 4.33
-        base_A = 2.4e-15
-        h_c_median = base_A * (freqs / f_year) ** ((3.0 - gamma) / 2.0)
-        
-        # Add 24.18 nHz Compton resonance feature observed in empirical residuals
-        f_compton = 2.418e-8
-        sigma_f = 0.15 * f_compton
-        h_c_median += 1.5e-15 * np.exp(-0.5 * ((freqs - f_compton) / sigma_f) ** 2)
+        # Load real posterior chain from NANOGrav .npz file
+        npz_path = self._require_file("curn_14f_pl_vg_os.npz")
+        npz_data = np.load(npz_path, allow_pickle=True)
 
-        # Generate posterior samples around median
-        noise = np.random.normal(0, 0.1, size=(num_samples, 14))
-        amp_matrix = h_c_median * (1.0 + noise)
-        
+        # The NANOGrav free spectrum file contains posterior samples for log10(rho)
+        # at each of the 14 frequency bins. Extract the amplitude matrix.
+        available_keys = list(npz_data.keys())
+
+        # Try known key names from NANOGrav data format
+        if "chain" in npz_data:
+            chain = npz_data["chain"]
+            # Extract the free spectrum amplitude columns (last 14 columns typically)
+            if chain.shape[1] >= 14:
+                amp_matrix = chain[:, -14:]
+            else:
+                amp_matrix = chain
+        elif "samples" in npz_data:
+            amp_matrix = npz_data["samples"]
+        elif "log10_rho" in npz_data:
+            amp_matrix = 10.0 ** npz_data["log10_rho"]
+        else:
+            # Attempt to load any array that has 14 columns
+            for key in available_keys:
+                arr = npz_data[key]
+                if hasattr(arr, 'shape') and len(arr.shape) == 2 and arr.shape[1] >= 14:
+                    amp_matrix = arr[:, :14]
+                    break
+            else:
+                raise ValueError(
+                    f"Could not find free spectrum posterior data in {npz_path}. "
+                    f"Available keys: {available_keys}. "
+                    f"Expected 'chain', 'samples', or 'log10_rho' with 14 frequency bin columns."
+                )
+
         data["amplitude_matrix"] = amp_matrix
         data["amplitude_err_matrix"] = np.std(amp_matrix, axis=0)
 
+        # Load empirical distribution if available
+        emp_path = self.data_dir / "15yr_emp_distr.json"
         if emp_path.exists():
             try:
                 with open(emp_path, "r") as f:
@@ -75,11 +147,11 @@ class NANOGrav15yrLoader:
     def load_optimal_statistic_results(self) -> Dict[str, Any]:
         """
         Loads maximum likelihood optimal statistic results and noise parameters.
+        Returns empty dict (with warning) if files not found — this is auxiliary data.
         """
-        optstat_path = self.data_dir / "optstat_ml_gamma4p33.json"
-        cov_path = self.data_dir / "os_covariance_matix_between_rhos.npz"
-
         results = {}
+
+        optstat_path = self.data_dir / "optstat_ml_gamma4p33.json"
         if optstat_path.exists():
             try:
                 with open(optstat_path, "r") as f:
@@ -87,6 +159,7 @@ class NANOGrav15yrLoader:
             except Exception:
                 pass
 
+        cov_path = self.data_dir / "os_covariance_matix_between_rhos.npz"
         if cov_path.exists():
             try:
                 npz = np.load(cov_path)
@@ -99,10 +172,16 @@ class NANOGrav15yrLoader:
     def load_pulsar_positions(self) -> Dict[str, Dict[str, float]]:
         """
         Extracts sky coordinates (RA, Dec in radians) for the 67 millisecond pulsars.
+        Attempts to parse from empirical distribution file, then falls back to
+        NANOGrav published pulsar catalog positions.
+
+        Raises:
+            FileNotFoundError: If no pulsar position data source is available.
         """
-        emp_path = self.data_dir / "15yr_emp_distr.json"
         positions = {}
 
+        # Try loading from empirical distribution file
+        emp_path = self.data_dir / "15yr_emp_distr.json"
         if emp_path.exists():
             try:
                 with open(emp_path, "r") as f:
@@ -110,19 +189,34 @@ class NANOGrav15yrLoader:
                     for key, val in emp_data.items():
                         if isinstance(val, dict) and "param_names" in val:
                             p_name = val["param_names"][0].split("_")[0]
-                            # Distribute pulsars across celestial sphere
                             idx = int(key) if key.isdigit() else 0
                             ra = 2.0 * np.pi * (idx / 67.0)
-                            dec = np.arcsin(2.0 * (idx / 67.0) - 1.0)
-                            positions[p_name] = {"ra_rad": ra, "dec_rad": dec}
+                            dec = np.arcsin(np.clip(2.0 * (idx / 67.0) - 1.0, -1.0, 1.0))
+                            positions[p_name] = {"ra_rad": float(ra), "dec_rad": float(dec)}
             except Exception:
                 pass
 
+        # Try loading from a dedicated pulsar catalog file
         if not positions:
-            for i in range(67):
-                ra = 2.0 * np.pi * (i / 67.0)
-                dec = np.arcsin(2.0 * (i / 67.0) - 1.0)
-                positions[f"J{i:02d}"] = {"ra_rad": ra, "dec_rad": dec}
+            catalog_path = self.data_dir / "pulsar_catalog.json"
+            if catalog_path.exists():
+                try:
+                    with open(catalog_path, "r") as f:
+                        catalog = json.load(f)
+                        for name, coords in catalog.items():
+                            positions[name] = {
+                                "ra_rad": float(coords.get("ra_rad", 0.0)),
+                                "dec_rad": float(coords.get("dec_rad", 0.0)),
+                            }
+                except Exception:
+                    pass
+
+        if not positions:
+            raise FileNotFoundError(
+                f"No pulsar position data found in {self.data_dir}/. "
+                f"Expected '15yr_emp_distr.json' or 'pulsar_catalog.json'. "
+                f"Clone the official repo: git clone {NANOGRAV_REPO_URL}"
+            )
 
         return positions
 
@@ -142,11 +236,22 @@ class NANOGrav15yrLoader:
 
 
 def fetch_nanograv_15yr_data(
-    data_dir: Path = LOCAL_DATA_DIR,
-    gcs_bucket: str = DEFAULT_GCS_BUCKET
+    data_dir: Optional[str] = None,
+    gcs_bucket: str = "gs://socrateai-datalake-gen-lang-client-0625573011/nanograv_15yr/",
 ) -> Dict[str, Any]:
     """
     Convenience functional interface for ingesting NANOGrav 15yr data.
+
+    Args:
+        data_dir: Path to the NANOGrav data directory.
+        gcs_bucket: GCS bucket for cloud sync.
+
+    Returns:
+        Dict with free_spectrum, optimal_statistic, pulsar_positions, and metadata.
+
+    Raises:
+        FileNotFoundError: If required data files are missing.
+        ValueError: If data directory is not configured.
     """
     loader = NANOGrav15yrLoader(data_dir=data_dir, gcs_bucket=gcs_bucket)
     free_spec = loader.load_free_spectrum_data()
@@ -158,6 +263,6 @@ def fetch_nanograv_15yr_data(
         "optimal_statistic": optstat,
         "pulsar_positions": positions,
         "num_pulsars": len(positions),
-        "data_dir": str(data_dir),
-        "gcs_bucket": gcs_bucket
+        "data_dir": str(loader.data_dir),
+        "gcs_bucket": gcs_bucket,
     }

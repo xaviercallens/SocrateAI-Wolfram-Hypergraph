@@ -65,10 +65,9 @@ def generate_topological_mask(
 
     # Preserve original 1-hop background neighborhood structure (linear
     # background)
-    bg_mask = (M_t > 0.0).float()
+    bg_mask = (M_t.to_dense() > 0.0).float() if M_t.is_sparse else (M_t > 0.0).float()
     T = torch.clamp(T + bg_mask, 0.0, 1.0)
-
-    return T
+    return T.to_sparse().coalesce()
 
 
 def canonical_graph_hash(M_t: torch.Tensor) -> str:
@@ -76,7 +75,8 @@ def canonical_graph_hash(M_t: torch.Tensor) -> str:
     Computes a canonical graph hash using NetworkX Weisfeiler-Leman algorithm.
     Used for local in-memory single-node isomorphic branch pruning.
     """
-    adj_np = (M_t.cpu().detach().numpy() > 0.1).astype(int)
+    dense_tensor = M_t.to_dense() if M_t.is_sparse else M_t
+    adj_np = (dense_tensor.cpu().detach().numpy() > 0.1).astype(int)
     G = nx.from_numpy_array(adj_np)
 
     # NetworkX Weisfeiler-Lehman hash is permutation invariant
@@ -112,12 +112,12 @@ def run_phase0_simulation(
 
         # 2. Execute PyTorch Hadamard rewrite update: M_{t+1} = (M_t^2 + M_t)
         # (o) T
-        M_sq = torch.matmul(M_t, M_t)
-        M_next_unmasked = M_sq + M_t
-        M_next = M_next_unmasked * T
+        from hypergraph.masking import hypergraph_step
+        M_next = hypergraph_step(M_t, T)
 
         # 3. Apply normalization / threshold to keep numeric stability
-        M_next = torch.clamp(M_next, 0.0, 100.0)
+        M_next_vals = M_next.values().clamp(0.0, 100.0)
+        M_next = torch.sparse_coo_tensor(M_next.indices(), M_next_vals, M_next.shape).coalesce()
 
         # 4. Check local canonical hash for isomorphic pruning
         current_hash = canonical_graph_hash(M_next)
@@ -132,12 +132,13 @@ def run_phase0_simulation(
         else:
             vram_mb = 0.0  # CPU mode
 
-        non_zero_edges = torch.count_nonzero(M_next > 0.01).item()
-        unmasked_sum = M_next_unmasked.sum().item()
-        masked_sum = M_next.sum().item()
+        dense_M = M_next.to_dense() if M_next.is_sparse else M_next
+        non_zero_edges = torch.count_nonzero(dense_M > 0.01).item()
+        unmasked_sum = 0.0 # Deprecated in unified masking
+        masked_sum = dense_M.sum().item()
 
         print(
-            f"Step {step:2d} | Edges: {non_zero_edges:4d} | Unmasked Sum: {unmasked_sum:10.2f} | Masked Sum: {masked_sum:8.2f} | Hash: {current_hash[:8]} | Pruned: {is_pruned}")
+            f"Step {step:2d} | Edges: {non_zero_edges:4d} | Masked Sum: {masked_sum:8.2f} | Hash: {current_hash[:8]} | Pruned: {is_pruned}")
 
         history.append({
             "step": step,
