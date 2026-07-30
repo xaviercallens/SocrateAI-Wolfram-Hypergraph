@@ -1,0 +1,1 @@
+/home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/scripts/sgwb_bayesian_verifier/target/release/sgwb_bayesian_verifier: /home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/scripts/sgwb_bayesian_verifier/src/main.rs

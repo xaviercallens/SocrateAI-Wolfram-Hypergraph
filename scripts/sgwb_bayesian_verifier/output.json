@@ -1,0 +1,8 @@
+{
+  "bic_h0": -960.0627208772969,
+  "bic_h1": -960.9745344562144,
+  "delta_bic": 0.9118135789175312,
+  "ln_bayes_factor": 0.4559067894587656,
+  "bayes_factor": 1.5776032886566058,
+  "verdict": "INCONCLUSIVE_OR_SMBHB_FAVORED"
+}
