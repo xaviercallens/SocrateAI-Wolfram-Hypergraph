@@ -145,7 +145,7 @@ def compute_bayes_factor(
 ## 5. Verification & Testing Strategy
 
 1. **Unit Tests:** Verify `f_Compton` calculation equals $2.418 \times 10^{-8}\text{ Hz}$ given $m_\chi = 10^{-22}\text{ eV}$.
-2. **Integration Tests:** Synthetic injection recovery test ensuring `bayesian_sgwb_verifier.py` recovers $24.18\text{ nHz}$ resonance peak with $\ln \mathcal{B}_{10} > 5.0$ on mock signals.
+2. **Integration Tests:** Real-data validation test ensuring `proof_protocol_4step.py` correctly ingests the NANOGrav 15yr HD KDE posteriors (Lamb et al. 2023, Zenodo 10344086) and outputs calibrated $\Delta\text{BIC}$ and $\ln\mathcal{B}_{10}$ values consistent with the published free spectrum.
 3. **Data Lake Sync:** Verify `gsutil` / `gcloud storage` syncs NANOGrav 15yr posteriors cleanly without corrupted JSON/FITS files.
 
 ---

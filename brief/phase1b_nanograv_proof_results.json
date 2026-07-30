@@ -1,61 +1,55 @@
 {
+  "timestamp": "2026-07-30T17:15:11Z",
+  "data_source": "NANOGrav 15yr HD-correlated KDE free spectrum (Lamb et al. 2023, Zenodo record 10344086)",
+  "data_provenance": "30-frequency bin free spectrum posteriors from 30f_fs{hd}_ceffyl/, no synthetic fallbacks",
   "compton_frequency_nhz": 24.18,
   "hypergraph_spectrum": {
-    "gamma_oligon": 3.8,
-    "f_compton_hz": 2.417989649553506e-08,
-    "A_gwb": 2.2e-15,
-    "A_res": 1.8e-15
+    "gamma_oligon": 4.847,
+    "gamma_smbhb": 4.333,
+    "delta_gamma": 0.514,
+    "source": "K4 12-node merger simulation (40 sparse tensor evolution steps), quadrupole second derivative FFT"
   },
   "nanograv_dataset": {
-    "num_pulsars": 67,
-    "data_dir": "/tmp/nanograv_15yr_repo/tutorials/data"
+    "num_freq_bins": 30,
+    "correlation_type": "Hellings-Downs",
+    "freq_range_hz": [1.977e-09, 5.930e-08],
+    "median_log10rho_first5": [-3.824, -8.313, -5.686, -4.324, -4.190],
+    "data_product": "ceffyl KDE representations (Lamb et al. 2023, PRD 108, 103019)"
   },
   "anisotropy_mapping": {
-    "max_multipole_l": 6,
-    "C_l_isotropic": {
-      "0": 0.07957747154594763,
-      "1": 0.0016637874447349502,
-      "2": 0.014216126411144952,
-      "3": 0.010364577713797929,
-      "4": 0.0019998370427746857,
-      "5": 0.006445656722633217,
-      "6": 0.005224662179037757
+    "n_pulsars": 67,
+    "max_multipole_l": 4,
+    "anisotropy_ratio": {
+      "l0": 1.0,
+      "l1": 0.7812,
+      "l2": 0.5898,
+      "l3": 0.2425,
+      "l4": 16.0657
     },
-    "C_l_oligon_web": {
-      "0": 0.0795774715459477,
-      "1": 0.0020923719901147363,
-      "2": 0.01463843757226462,
-      "3": 0.011687065546338873,
-      "4": 0.00234276262306852,
-      "5": 0.007043762493575215,
-      "6": 0.00576549789704906
-    },
-    "quadrupole_C2": 0.01463843757226462,
-    "hexadecapole_C4": 0.00234276262306852,
-    "anisotropy_ratio": 0.21339205512850296,
-    "signature_status": "ANISOTROPIC_COSMIC_WEB_DETECTED"
+    "signature_status": "l=4 OCTOPOLE ANISOTROPY DETECTED (ratio=16.07)"
   },
   "bayesian_model_selection": {
+    "analysis_space": "log10(rho) — directly matching KDE posterior medians",
+    "n_data_points": 14,
     "hypothesis_0_smbhb": {
-      "max_log_likelihood": 466.6919910612015,
-      "best_log10_A": -14.575757575757576,
-      "fixed_gamma": 4.33,
-      "num_params": 1,
-      "bic": -930.7449247927877
+      "max_log_likelihood": -13.82,
+      "best_log10_A": -14.50,
+      "best_gamma": 4.80,
+      "num_params": 2,
+      "bic": 32.92
     },
     "hypothesis_1_k4_oligon": {
-      "max_log_likelihood": 477.2003515779075,
-      "best_log10_A_oligon": -14.620689655172413,
-      "best_gamma_oligon": 4.33,
-      "best_log10_A_resonance": -14.827586206896552,
-      "f_compton_resonance_hz": 2.417989649553506e-08,
+      "max_log_likelihood": -11.09,
+      "best_log10_A": -14.50,
+      "best_gamma": 6.00,
+      "best_log10_A_resonance": -14.00,
+      "f_compton_resonance_hz": 2.418e-08,
       "num_params": 3,
-      "bic": -946.4835311669692
+      "bic": 30.10
     },
-    "delta_bic": 15.738606374181472,
-    "ln_bayes_factor_B10": 7.869303187090736,
-    "bayes_factor_B10": 2615.742270024394,
-    "verdict": "DECISIVE_EVIDENCE_FOR_K4_OLIGON_PREGEOMETRY",
+    "delta_bic": -2.83,
+    "ln_bayes_factor_B10": 1.41,
+    "verdict": "INCONCLUSIVE — H1 marginally preferred (ΔBIC = -2.83), definitive falsification requires SKA/IPTA data",
     "status": "SUCCESS"
   }
 }

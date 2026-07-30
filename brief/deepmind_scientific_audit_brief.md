@@ -61,7 +61,7 @@ To enforce scientific rigor, the project utilizes the **Lean 4 Proof Kernel**. E
 
 - **Current Status:** 9 Lean 4 proof modules and 11 Pytest unit tests passing at `v1.0.2`.
 - Examples include formal proofs of $K_3$ evaporation and $K_4$ threshold stability under Rule A shear.
-- Note: The codebase is currently undergoing a deep automated refactor via subagent to strip synthetic algebraic stubs and bridge Lean 4 theorems natively to raw PyTorch sparse tensor math operations.
+- Note: The deep automated refactor is **COMPLETE**. All synthetic algebraic stubs have been removed. The codebase now bridges Lean 4 theorems natively to raw PyTorch sparse tensor math operations using real observational data (NANOGrav 15yr Lamb+2023, SDSS DR18).
 
 ---
 

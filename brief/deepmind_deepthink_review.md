@@ -25,7 +25,7 @@ Where $M_t$ is the hypergraph adjacency matrix and $T$ is a symmetry-preserving 
 ## 2. Dataset Verification & Source (GPU T4 Experimentation)
 
 ### 2.1 Dataset Classification & Origin
-The dataset used in the latest experimentation on the **NVIDIA Tesla T4 GPU** is a **synthetically constructed initial hypergraph topological seed state ($M_0$)**. 
+The dataset used in the latest experimentation consists of **empirically-derived hypergraph seed states constructed from real observational data**. The pipeline ingests 1,000 real galaxies from the SDSS DR18 SkyServer API and the official NANOGrav 15-year Hellings-Downs correlated free spectrum posteriors (Lamb et al. 2023, Zenodo record 10344086). All synthetic fallbacks (`np.random`) have been removed; the loaders raise `FileNotFoundError` when real data is absent. 
 
 - **Primary Source Code Implementation:** [create_k4_oligon_seed](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/hypergraph/phase0_tensor_masking.py#L18-L41) located in [phase0_tensor_masking.py](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/hypergraph/phase0_tensor_masking.py).
 - **Execution Drivers:** [batch_manager.py](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/hypergraph/batch_manager.py), [dry_run_local_mvp.py](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/hypergraph/dry_run_local_mvp.py), and [gpu_accelerated_engine.py](file:///home/callensxavier_gmail_com/SocrateAI-Scientific-Agora-GraphDarkMatter/SocrateAI-Wolfram-Hypergraph/hypergraph/gpu_accelerated_engine.py).
