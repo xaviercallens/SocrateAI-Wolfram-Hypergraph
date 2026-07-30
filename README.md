@@ -21,6 +21,7 @@ By replacing probabilistic Retrieval-Augmented Generation (RAG) with determinist
 - 📑 **DeepThink Peer Review:** [DeepMind / Deep Think Review](https://github.com/xaviercallens/SocrateAI-Wolfram-Hypergraph/blob/main/brief/deepmind_deepthink_review.md)
 - 📈 **Gravitational Extraction Report ($G_{\text{eff}}$):** [Deep-Time $G_{\text{eff}}$ Report](https://github.com/xaviercallens/SocrateAI-Wolfram-Hypergraph/blob/main/brief/report.md)
 - 🧮 **Wolfram Computational Essay:** [Wolfram Computational Essay](https://github.com/xaviercallens/SocrateAI-Wolfram-Hypergraph/blob/main/brief/wpp_computational_essay.md)
+- 🛰️ **Phase 1B Experimental Specification:** [Phase 1B NanoGrav SGWB Protocol Specification](https://github.com/xaviercallens/SocrateAI-Wolfram-Hypergraph/blob/main/specs/phase1b_nanograv_sgwb_specification.md)
 
 ---
 
