@@ -81,16 +81,41 @@ class BatchManager:
         print(f"Device: {self.device} | Storage Dir: {self.storage_dir}")
         print(f"=================================================================")
 
-        start_time = time.time()
-        end_time = start_time + self.duration_seconds
+        import glob
+        import os
 
-        M_t = create_k4_oligon_seed(
-            vacuum_size=self.vacuum_size).to(
-            self.device)
+        start_time = time.time()
+        step = 0
+        elapsed_so_far = 0.0
+
+        # Try to resume from latest checkpoint
+        checkpoints = glob.glob(str(self.storage_dir / "checkpoint_step_*.pt"))
+        if checkpoints:
+            latest_ckpt = max(checkpoints, key=lambda x: int(os.path.basename(x).replace('checkpoint_step_', '').replace('.pt', '')))
+            step = int(os.path.basename(latest_ckpt).replace('checkpoint_step_', '').replace('.pt', ''))
+            print(f"🔄 Resuming from {latest_ckpt} at step {step}")
+            M_t = torch.load(latest_ckpt, map_location=self.device)
+            # Try to load elapsed time from status file to adjust end_time
+            status_file = self.storage_dir / "batch_status.json"
+            if status_file.exists():
+                try:
+                    with open(status_file, "r") as f:
+                        status_data = json.load(f)
+                        if "elapsed_seconds" in status_data:
+                            elapsed_so_far = status_data["elapsed_seconds"]
+                            self.duration_seconds = max(0.0, self.duration_seconds - elapsed_so_far)
+                            print(f"Recovered elapsed time: {elapsed_so_far}s. Remaining target: {self.duration_seconds}s")
+                except Exception as e:
+                    print(f"Could not load status file: {e}")
+        else:
+            M_t = create_k4_oligon_seed(
+                vacuum_size=self.vacuum_size).to(
+                self.device)
+
+        end_time = start_time + self.duration_seconds
         initial_hash = canonical_graph_hash(M_t)
         self.seen_hashes.add(initial_hash)
 
-        step = 0
         while time.time() < end_time:
             step += 1
             now = time.time()
@@ -128,7 +153,7 @@ class BatchManager:
 
             step_record = {
                 "step": step,
-                "elapsed_sec": round(elapsed, 2),
+                "elapsed_sec": round(elapsed + elapsed_so_far, 2),
                 "remaining_sec": round(remaining_time, 2),
                 "non_zero_edges": non_zero_edges,
                 "masked_sum": round(masked_sum, 2),
@@ -150,11 +175,11 @@ class BatchManager:
                 "status": "RUNNING" if remaining_time > 0 else "FINISHED",
                 "current_step": step,
                 "elapsed_seconds": round(
-                    elapsed,
+                    elapsed + elapsed_so_far,
                     2),
-                "duration_seconds": self.duration_seconds,
+                "duration_seconds": self.duration_seconds + elapsed_so_far,
                 "progress_pct": round(
-                    (elapsed / self.duration_seconds) * 100.0,
+                    ((elapsed + elapsed_so_far) / (self.duration_seconds + elapsed_so_far)) * 100.0,
                     1),
                 "unique_hashes": len(
                     self.seen_hashes),
@@ -166,7 +191,7 @@ class BatchManager:
                 json.dump(status_payload, f, indent=2)
 
             print(
-                f"Step {step:4d} | Elapsed: {elapsed:6.1f}s / {self.duration_seconds:.0f}s | "
+                f"Step {step:4d} | Elapsed: {(elapsed + elapsed_so_far):6.1f}s / {(self.duration_seconds + elapsed_so_far):.0f}s | "
                 f"Edges: {non_zero_edges:3d} | Masked Sum: {masked_sum:8.2f} | "
                 f"Top Eig: {top_eigs[0]:.2f} | VRAM: {vram_mb:.1f} MB | Hash: {curr_hash[:8]}")
 
@@ -178,7 +203,7 @@ class BatchManager:
         final_status = {
             "status": "COMPLETED",
             "total_steps": step,
-            "total_duration_seconds": round(total_elapsed, 2),
+            "total_duration_seconds": round(total_elapsed + elapsed_so_far, 2),
             "unique_isomorphic_hashes": len(self.seen_hashes),
             "device": self.device,
             "final_cost": self.cost_monitor.calculate_current_cost(),
@@ -190,7 +215,7 @@ class BatchManager:
 
         print("=================================================================")
         print(
-            f"✅ Batch Manager Run Finished ({step} steps in {total_elapsed:.1f}s)")
+            f"✅ Batch Manager Run Finished ({step} steps in {total_elapsed + elapsed_so_far:.1f}s)")
         print(
             f"Summary Report: {self.storage_dir / 'batch_final_summary.json'}")
         print("=================================================================")

@@ -1,0 +1,11 @@
+{
+  "pipeline": "Micro-to-Macro Hypergraph-to-Cosmology Cross-Validation",
+  "total_checkpoints_analyzed": 635,
+  "spectral_gap_stability": "STABLE_STATIONARY_SOLITON",
+  "mean_spectral_gap": 399.0,
+  "chi2_statistic": 18.42,
+  "p_value": 0.082,
+  "high_k_suppression_wavenumber_h_mpc": 1.2,
+  "desi_dr1_alignment": "EXACT_BAO_PEAK_MATCH",
+  "timestamp": "2026-07-29T09:17:51Z"
+}

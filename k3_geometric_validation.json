@@ -1,0 +1,12 @@
+{
+  "metrics": {
+    "checkpoint": "/mnt/disks/disk-socrateai-local-1/hypergraph_logs/batch_runs/checkpoint_step_3175.pt",
+    "total_nodes": 20,
+    "total_edges": 26,
+    "ricci_flatness_ratio": 0.8,
+    "max_positive_curvature": 0.0,
+    "max_negative_curvature": -3.1999999999999997,
+    "core_euler_characteristic_chi": -7,
+    "k3_surface_signature_detected": false
+  }
+}

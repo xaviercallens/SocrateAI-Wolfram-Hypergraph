@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: socrateai-dashboard
+  namespace: default
+  labels:
+    app: socrateai-dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: socrateai-dashboard
+  template:
+    metadata:
+      labels:
+        app: socrateai-dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: gcr.io/socrateai/dashboard:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "250m"
+            memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socrateai-dashboard-svc
+  namespace: default
+spec:
+  selector:
+    app: socrateai-dashboard
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: LoadBalancer
