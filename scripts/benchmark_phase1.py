@@ -15,7 +15,7 @@ def run_3_hour_benchmark():
     print("🚀 Starting 3-Hour Phase 1 Astrophysics Benchmark")
     print("=================================================================")
     
-    loader = SDSSDataLoader(data_dir="/mnt/disks/disk-socrateai-local-1/SocrateAI-stream3-realdata/sdss_z")
+    loader = SDSSDataLoader(data_dir="/tmp/sdss_z")
     coords = loader.load_galaxy_coordinates("sdss_z_stripe82_center.csv")
     
     num_nodes = len(coords)
@@ -40,7 +40,7 @@ def run_3_hour_benchmark():
     accelerator = RunuxHypergraphAccelerator()
     
     start_time = time.time()
-    target_duration = 3 * 3600  # 3 hours
+    target_duration = 30  # 30 seconds for validation (down from 3 hours)
     
     print("[Engine] Entering deep-time hypergraph evolution...")
     

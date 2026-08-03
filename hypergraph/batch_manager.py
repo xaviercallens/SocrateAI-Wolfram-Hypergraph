@@ -12,6 +12,13 @@ import torch
 import numpy as np
 from pathlib import Path
 
+# Try importing kafka for Phase 5 live dashboard streaming
+try:
+    from kafka import KafkaProducer
+    KAFKA_AVAILABLE = True
+except ImportError:
+    KAFKA_AVAILABLE = False
+
 from hypergraph.cost_monitoring import GlobalCostMonitor
 from hypergraph.rate_limiter import WolframRateLimiter, rate_limited
 from hypergraph.phase0_tensor_masking import (
@@ -59,6 +66,18 @@ class BatchManager:
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.seen_hashes: set[str] = set()
         self.step_history: list[dict] = []
+        
+        # Phase 5 Live Dashboard Kafka Producer
+        self.kafka_producer = None
+        if KAFKA_AVAILABLE:
+            try:
+                self.kafka_producer = KafkaProducer(
+                    bootstrap_servers=['localhost:9092'],
+                    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+                )
+                print("📡 Kafka Live Dashboard Streaming Enabled")
+            except Exception as e:
+                print(f"⚠️ Could not connect to Kafka Broker for Dashboard streaming: {e}")
 
     def compute_graph_spectrum(self, M_t: torch.Tensor) -> list:
         """Computes top eigenvalues of the adjacency matrix for continuum limit spectral analysis."""
@@ -94,7 +113,17 @@ class BatchManager:
             latest_ckpt = max(checkpoints, key=lambda x: int(os.path.basename(x).replace('checkpoint_step_', '').replace('.pt', '')))
             step = int(os.path.basename(latest_ckpt).replace('checkpoint_step_', '').replace('.pt', ''))
             print(f"🔄 Resuming from {latest_ckpt} at step {step}")
-            M_t = torch.load(latest_ckpt, map_location=self.device)
+            
+            # Load full state dictionary instead of just the tensor
+            checkpoint_state = torch.load(latest_ckpt, map_location=self.device)
+            if isinstance(checkpoint_state, dict) and "M_t" in checkpoint_state:
+                M_t = checkpoint_state["M_t"].to(self.device)
+                self.seen_hashes = checkpoint_state.get("seen_hashes", set())
+                self.step_history = checkpoint_state.get("step_history", [])
+            else:
+                # Fallback for legacy checkpoints that only stored the tensor
+                M_t = checkpoint_state.to(self.device)
+                
             # Try to load elapsed time from status file to adjust end_time
             status_file = self.storage_dir / "batch_status.json"
             if status_file.exists():
@@ -162,11 +191,17 @@ class BatchManager:
             }
             self.step_history.append(step_record)
 
-            # Save checkpoint & update batch status JSON on disk
+            # Save full state checkpoint & update batch status JSON on disk
             if step % self.snapshot_interval_steps == 0 or remaining_time <= 0:
                 checkpoint_file = self.storage_dir / \
                     f"checkpoint_step_{step}.pt"
-                torch.save(M_next.cpu(), checkpoint_file)
+                # Save full state to allow exact fault-tolerant recovery
+                state_dict = {
+                    "M_t": M_next.cpu(),
+                    "seen_hashes": self.seen_hashes,
+                    "step_history": self.step_history,
+                }
+                torch.save(state_dict, checkpoint_file)
 
             status_payload = {
                 "status": "RUNNING" if remaining_time > 0 else "FINISHED",
@@ -186,6 +221,10 @@ class BatchManager:
 
             with open(self.storage_dir / "batch_status.json", "w") as f:
                 json.dump(status_payload, f, indent=2)
+                
+            # Phase 5 Live Kafka Publish
+            if self.kafka_producer is not None:
+                self.kafka_producer.send('hypergraph_dashboard_stream', status_payload)
 
             print(
                 f"Step {step:4d} | Elapsed: {(elapsed + elapsed_so_far):6.1f}s / {(self.duration_seconds + elapsed_so_far):.0f}s | "

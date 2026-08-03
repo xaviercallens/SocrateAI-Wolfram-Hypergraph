@@ -9,3 +9,5 @@ __pycache__/
 *.tmp
 .github/workflows/
 
+data/euclid_q1/tile_*
+lean_oracle/.lake/build/

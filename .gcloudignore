@@ -1,0 +1,12 @@
+.git
+venv/
+.venv/
+scratch/
+out/
+outputs/
+tests/
+benchmarks/
+tectonic
+node_modules/
+*.pyc
+__pycache__/
